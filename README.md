@@ -14,6 +14,12 @@ Local Node.js + TypeScript Twitch chat bot that reads Twitch chat with EventSub 
   - `!ask <question>` -> short OpenAI answer
   - `!help` -> command list
 - Basic moderation alerts for repeated messages, promo spam phrases, and suspicious links.
+- `!ask` abuse guard for long, expensive, prompt-injection, and unsafe requests.
+- Configurable bot personality and stream context for OpenAI replies.
+- Short in-memory chat memory for recent non-command messages.
+- Twitch stream context lookup for title, category/game, tags, live state, and viewer count.
+- Optional engagement reminder that only posts when chat has been active recently.
+- First-chat welcome messages for viewers first seen during the current bot session.
 - In-memory cooldowns for AI usage.
 - No database.
 
@@ -53,6 +59,19 @@ Optional:
 
 ```dotenv
 OPENAI_MODEL=gpt-5.2
+BOT_PERSONALITY=Eres ZolungaBot, compa relajado del stream. Respondes en espanol casual, con humor seco, breve y sin exagerar.
+STREAM_CONTEXT=El canal habla de gaming, desarrollo, IA y proyectos creativos. Ayuda a mantener el chat activo.
+ALLOW_BOT_SELF_MESSAGES=false
+ENGAGEMENT_REMINDERS_ENABLED=true
+ENGAGEMENT_REMINDER_INTERVAL_MINUTES=30
+ENGAGEMENT_ACTIVE_CHAT_WINDOW_MINUTES=10
+ENGAGEMENT_REMINDER_MESSAGE=Estoy por aqui tambien: usa !help para ver comandos, o !ask <pregunta> para preguntarme algo corto.
+WELCOME_FIRST_CHAT_ENABLED=true
+WELCOME_FIRST_CHAT_COOLDOWN_SECONDS=90
+WELCOME_FIRST_CHAT_MESSAGE=Bienvenido @{username}. Dato perturbador: {fact} Usa !help si quieres ver comandos.
+MEMORY_RECENT_CHAT_MESSAGES=20
+MEMORY_PROMPT_CHAT_MESSAGES=8
+STREAM_CONTEXT_CACHE_MINUTES=2
 ```
 
 ## Twitch App + Token Notes
@@ -74,6 +93,8 @@ Useful official docs:
 - [Twitch chat authentication](https://dev.twitch.tv/docs/chat/authenticating/)
 - [Twitch `channel.chat.message`](https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/#channelchatmessage)
 - [Twitch Send Chat Message API](https://dev.twitch.tv/docs/api/reference/#send-chat-message)
+- [Twitch Get Channel Information API](https://dev.twitch.tv/docs/api/reference/#get-channel-information)
+- [Twitch Get Streams API](https://dev.twitch.tv/docs/api/reference/#get-streams)
 
 ## Run Locally
 
@@ -114,6 +135,93 @@ Detected cases:
   - `viewers guaranteed`
   - `cheap viewers`
 - Suspicious links.
+
+## AI Ask Guard
+
+Before calling OpenAI, `!ask` rejects requests that are likely to waste tokens or abuse the bot:
+
+- More than 240 characters.
+- More than 45 words.
+- Prompt-injection attempts like asking the bot to ignore system instructions.
+- Attempts to reveal hidden prompts or internal instructions.
+- Very large generation requests such as full apps, essays, books, or long scripts.
+- Obviously unsafe requests involving phishing, malware, credential theft, or exploits.
+
+Rejected `!ask` messages do not call OpenAI.
+
+## Personality + Memory
+
+The bot does not get persistent memory automatically from OpenAI. This MVP keeps a small in-memory list of recent non-command chat messages and sends only the latest few to OpenAI during `!ask`.
+
+This memory:
+
+- Helps answers react to the current chat vibe.
+- Is not stored on disk.
+- Is lost when the bot restarts.
+- Excludes command messages like `!ping` and `!ask`.
+
+Configure personality and static channel context with:
+
+```dotenv
+BOT_PERSONALITY=Eres ZolungaBot, compa relajado del stream. Respondes en espanol casual, con humor seco, breve y sin exagerar.
+STREAM_CONTEXT=El canal habla de gaming, desarrollo, IA y proyectos creativos. Ayuda a mantener el chat activo.
+MEMORY_RECENT_CHAT_MESSAGES=20
+MEMORY_PROMPT_CHAT_MESSAGES=8
+```
+
+## Twitch Stream Context
+
+For `!ask`, the bot also fetches Twitch context and passes it to OpenAI:
+
+- Stream title.
+- Category/game.
+- Tags.
+- Whether the channel is live.
+- Viewer count when live.
+
+The data is cached for `STREAM_CONTEXT_CACHE_MINUTES` to avoid calling Twitch too often. Twitch's `Get Channel Information` and `Get Streams` endpoints work with an app access token or user access token, so the existing bot token is enough for this read-only context.
+
+## Engagement Reminder
+
+The bot can post a light reminder that it exists, but only if chat has been active recently.
+
+Defaults:
+
+- Checks every 30 minutes.
+- Sends only if a non-command viewer message happened in the last 10 minutes.
+- Does not send when chat is quiet.
+
+Configure it with:
+
+```dotenv
+ENGAGEMENT_REMINDERS_ENABLED=true
+ENGAGEMENT_REMINDER_INTERVAL_MINUTES=30
+ENGAGEMENT_ACTIVE_CHAT_WINDOW_MINUTES=10
+ENGAGEMENT_REMINDER_MESSAGE=Estoy por aqui tambien: usa !help para ver comandos, o !ask <pregunta> para preguntarme algo corto.
+```
+
+## First-Chat Welcomes
+
+The bot can welcome a viewer the first time it sees them chat during the current bot session.
+
+Important: this is in-memory only. It does not know if the viewer has chatted in older streams or before the bot started.
+
+Defaults:
+
+- Enabled.
+- Ignores command-only first messages like `!help`.
+- Uses a global cooldown of 90 seconds to avoid spam if many new users arrive together.
+- Supports `{username}` and `{fact}` in the welcome message.
+- Calls OpenAI to generate a random safe, mildly disturbing fact.
+- Falls back to a local fact if OpenAI is unavailable.
+
+Configure it with:
+
+```dotenv
+WELCOME_FIRST_CHAT_ENABLED=true
+WELCOME_FIRST_CHAT_COOLDOWN_SECONDS=90
+WELCOME_FIRST_CHAT_MESSAGE=Bienvenido @{username}. Dato perturbador: {fact} Usa !help si quieres ver comandos.
+```
 
 ## TODO
 

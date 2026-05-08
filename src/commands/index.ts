@@ -1,5 +1,8 @@
 import { config } from "../config.js";
-import type { OpenAiClient } from "../openai/client.js";
+import type { ChatMemory } from "../memory/chatMemory.js";
+import { inspectAskQuestion } from "../moderation/askGuard.js";
+import { OpenAiUnavailableError, type OpenAiClient } from "../openai/client.js";
+import type { TwitchApiClient } from "../twitch/api.js";
 import type { ChatMessage, TwitchChatClient } from "../twitch/chat.js";
 import { Cooldown, formatRemainingSeconds } from "../utils/cooldown.js";
 import { logger } from "../utils/logger.js";
@@ -7,6 +10,8 @@ import { logger } from "../utils/logger.js";
 interface CommandHandlerOptions {
   chat: TwitchChatClient;
   openai: OpenAiClient;
+  memory: ChatMemory;
+  twitchApi: TwitchApiClient;
 }
 
 export class CommandHandler {
@@ -60,6 +65,13 @@ export class CommandHandler {
       return;
     }
 
+    const askGuard = inspectAskQuestion(question);
+    if (!askGuard.allowed) {
+      logger.warn(`Blocked !ask from ${message.username}: ${askGuard.reason}`);
+      await this.options.chat.say(`@${message.username} ${askGuard.reply ?? "no puedo responder esa pregunta por chat."}`, message.id);
+      return;
+    }
+
     if (!this.askPerUserCooldown.isReady(message.userId)) {
       const seconds = formatRemainingSeconds(this.askPerUserCooldown.remainingMs(message.userId));
       await this.options.chat.say(`@${message.username} espera ${seconds}s antes de usar !ask otra vez.`, message.id);
@@ -72,10 +84,32 @@ export class CommandHandler {
       return;
     }
 
-    this.askPerUserCooldown.trigger(message.userId);
-    this.aiGlobalCooldown.trigger();
+    try {
+      const streamContext = await this.getStreamContext();
+      const answer = await this.options.openai.answerQuestion(question, message.username, {
+        recentChat: this.options.memory.getRecentForPrompt(config.memory.maxPromptChatMessages),
+        stream: streamContext
+      });
+      this.askPerUserCooldown.trigger(message.userId);
+      this.aiGlobalCooldown.trigger();
+      await this.options.chat.say(`@${message.username} ${answer}`, message.id);
+    } catch (error) {
+      if (error instanceof OpenAiUnavailableError) {
+        logger.warn(`OpenAI unavailable for !ask: ${error.reason}`);
+        await this.options.chat.say(`@${message.username} la IA no esta disponible ahora mismo. Prueba de nuevo mas tarde.`, message.id);
+        return;
+      }
 
-    const answer = await this.options.openai.answerQuestion(question, message.username);
-    await this.options.chat.say(`@${message.username} ${answer}`, message.id);
+      throw error;
+    }
+  }
+
+  private async getStreamContext() {
+    try {
+      return await this.options.twitchApi.getStreamContext();
+    } catch (error) {
+      logger.warn("Could not load Twitch stream context for !ask", error);
+      return undefined;
+    }
   }
 }
