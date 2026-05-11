@@ -19,7 +19,8 @@ Local Node.js + TypeScript Twitch chat bot that reads Twitch chat with EventSub 
 - Short in-memory chat memory for recent non-command messages.
 - Twitch stream context lookup for title, category/game, tags, live state, and viewer count.
 - Optional engagement reminder that only posts when chat has been active recently.
-- First-chat welcome messages for viewers first seen during the current bot session.
+- First-chat welcome messages for viewers first seen in persistent viewer memory.
+- Persistent viewer memory in local JSON.
 - In-memory cooldowns for AI usage.
 - No database.
 
@@ -136,6 +137,8 @@ Detected cases:
   - `cheap viewers`
 - Suspicious links.
 
+Messages that trigger a moderation alert are not passed to engagement features. They will not be stored in chat memory, will not activate reminders, will not trigger first-chat welcomes, and will not run commands.
+
 ## AI Ask Guard
 
 Before calling OpenAI, `!ask` rejects requests that are likely to waste tokens or abuse the bot:
@@ -151,7 +154,12 @@ Rejected `!ask` messages do not call OpenAI.
 
 ## Personality + Memory
 
-The bot does not get persistent memory automatically from OpenAI. This MVP keeps a small in-memory list of recent non-command chat messages and sends only the latest few to OpenAI during `!ask`.
+The bot does not get persistent memory automatically from OpenAI. This MVP has two memory layers:
+
+- Short in-memory chat context for `!ask`.
+- Persistent viewer memory in `data/viewers.json`.
+
+The chat context keeps a small in-memory list of recent non-command chat messages and sends only the latest few to OpenAI during `!ask`.
 
 This memory:
 
@@ -159,6 +167,18 @@ This memory:
 - Is not stored on disk.
 - Is lost when the bot restarts.
 - Excludes command messages like `!ping` and `!ask`.
+
+The persistent viewer memory stores basic viewer metadata:
+
+- user ID,
+- username/login,
+- first seen time,
+- last seen time,
+- message count,
+- command count,
+- welcomed time if the bot sent a welcome.
+
+`data/viewers.json` is ignored by git because it contains real chat activity.
 
 Configure personality and static channel context with:
 
@@ -202,9 +222,9 @@ ENGAGEMENT_REMINDER_MESSAGE=Estoy por aqui tambien: usa !help para ver comandos,
 
 ## First-Chat Welcomes
 
-The bot can welcome a viewer the first time it sees them chat during the current bot session.
+The bot can welcome a viewer the first time it sees them chat in persistent viewer memory.
 
-Important: this is in-memory only. It does not know if the viewer has chatted in older streams or before the bot started.
+Important: this starts tracking from the moment `data/viewers.json` exists. It cannot know older chat history from before the bot started tracking.
 
 Defaults:
 
@@ -214,6 +234,7 @@ Defaults:
 - Supports `{username}` and `{fact}` in the welcome message.
 - Calls OpenAI to generate a random safe, mildly disturbing fact.
 - Falls back to a local fact if OpenAI is unavailable.
+- Does not run for messages flagged by moderation.
 
 Configure it with:
 
