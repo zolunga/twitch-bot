@@ -1,18 +1,15 @@
 import { config } from "../config.js";
 import type { ViewerMemory } from "../memory/viewerMemory.js";
-import { OpenAiUnavailableError, type OpenAiClient } from "../openai/client.js";
 import type { ChatMessage, TwitchChatClient } from "../twitch/chat.js";
 import { Cooldown } from "../utils/cooldown.js";
 import { logger } from "../utils/logger.js";
 
 export class FirstChatWelcome {
   private readonly seenUserIds = new Set<string>();
-  private readonly recentFacts: string[] = [];
   private readonly globalCooldown = new Cooldown(config.engagement.welcomeFirstChatCooldownMs);
 
   constructor(
     private readonly chat: TwitchChatClient,
-    private readonly openai: OpenAiClient,
     private readonly viewerMemory: ViewerMemory
   ) {}
 
@@ -42,10 +39,7 @@ export class FirstChatWelcome {
     }
 
     try {
-      const fact = await this.getWelcomeFact();
-      const welcome = config.engagement.welcomeFirstChatMessage
-        .replaceAll("{username}", message.username)
-        .replaceAll("{fact}", fact);
+      const welcome = this.getWelcomeMessage(message.username);
 
       await this.chat.say(welcome, message.id);
       await this.viewerMemory.markWelcomed(message.userId);
@@ -55,47 +49,10 @@ export class FirstChatWelcome {
     }
   }
 
-  private async getWelcomeFact(): Promise<string> {
-    try {
-      const fact = await this.openai.generateDisturbingFact(this.recentFacts);
-      this.rememberFact(fact);
-      return fact;
-    } catch (error) {
-      if (error instanceof OpenAiUnavailableError) {
-        logger.warn(`OpenAI unavailable for welcome fact: ${error.reason}`);
-        const fallbackFact = this.getFallbackFact();
-        this.rememberFact(fallbackFact);
-        return fallbackFact;
-      }
+  private getWelcomeMessage(username: string): string {
+    const templates = config.engagement.welcomeFirstChatMessages;
+    const template = templates[Math.floor(Math.random() * templates.length)] ?? "Bienvenido @{username}.";
 
-      throw error;
-    }
-  }
-
-  private rememberFact(fact: string): void {
-    const normalized = fact.trim();
-
-    if (!normalized) {
-      return;
-    }
-
-    this.recentFacts.push(normalized);
-
-    while (this.recentFacts.length > 10) {
-      this.recentFacts.shift();
-    }
-  }
-
-  private getFallbackFact(): string {
-    const fallbackFacts = [
-      "la mayoria del polvo en casa viene de piel muerta.",
-      "hay mas bacterias en tu boca que personas en la Tierra.",
-      "tu cerebro a veces inventa detalles para rellenar huecos de memoria.",
-      "algunos hongos pueden controlar el comportamiento de insectos.",
-      "el espacio huele, segun astronautas, parecido a metal caliente."
-    ];
-    const unused = fallbackFacts.find((fact) => !this.recentFacts.includes(fact));
-
-    return unused ?? fallbackFacts[Math.floor(Math.random() * fallbackFacts.length)];
+    return template.replaceAll("{username}", username);
   }
 }

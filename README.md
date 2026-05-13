@@ -10,7 +10,7 @@ Local Node.js + TypeScript Twitch chat bot that reads Twitch chat with EventSub 
 - Commands:
   - `!ping` -> `pong`
   - `!hola` -> greets the viewer
-  - `!redes` -> placeholder social links
+  - `!redes` -> social links loaded from `SOCIAL_LINKS_MESSAGE`; use `||` to send multiple chat messages
   - `!ask <question>` -> short OpenAI answer
   - `!help` -> command list
 - Basic moderation alerts for repeated messages, promo spam phrases, and suspicious links.
@@ -62,6 +62,8 @@ Optional:
 OPENAI_MODEL=gpt-5.2
 BOT_PERSONALITY=Eres ZolungaBot, compa relajado del stream. Respondes en espanol casual, con humor seco, breve y sin exagerar.
 STREAM_CONTEXT=El canal habla de gaming, desarrollo, IA y proyectos creativos. Ayuda a mantener el chat activo.
+SOCIAL_LINKS_MESSAGE=Discord: https://example.com/discord || Instagram: https://example.com/instagram || TikTok: https://example.com/tiktok
+SOCIAL_LINKS_MESSAGE_DELAY_MS=2500
 ALLOW_BOT_SELF_MESSAGES=false
 ENGAGEMENT_REMINDERS_ENABLED=true
 ENGAGEMENT_REMINDER_INTERVAL_MINUTES=30
@@ -69,7 +71,7 @@ ENGAGEMENT_ACTIVE_CHAT_WINDOW_MINUTES=10
 ENGAGEMENT_REMINDER_MESSAGE=Estoy por aqui tambien: usa !help para ver comandos, o !ask <pregunta> para preguntarme algo corto.
 WELCOME_FIRST_CHAT_ENABLED=true
 WELCOME_FIRST_CHAT_COOLDOWN_SECONDS=90
-WELCOME_FIRST_CHAT_MESSAGE=Bienvenido @{username}. Dato perturbador: {fact} Usa !help si quieres ver comandos.
+WELCOME_FIRST_CHAT_MESSAGES=Bienvenido @{username}, que gusto verte por aqui. Usa !help si quieres ver comandos. || Hey @{username}, bienvenido al chat. Ponte comodo y disfruta el stream. || Buenas @{username}, llegaste justo a tiempo.
 MEMORY_RECENT_CHAT_MESSAGES=20
 MEMORY_PROMPT_CHAT_MESSAGES=8
 STREAM_CONTEXT_CACHE_MINUTES=2
@@ -231,9 +233,9 @@ Defaults:
 - Enabled.
 - Ignores command-only first messages like `!help`.
 - Uses a global cooldown of 90 seconds to avoid spam if many new users arrive together.
-- Supports `{username}` and `{fact}` in the welcome message.
-- Calls OpenAI to generate a random safe, mildly disturbing fact.
-- Falls back to a local fact if OpenAI is unavailable.
+- Supports `{username}` in welcome messages.
+- Picks one random welcome template from `WELCOME_FIRST_CHAT_MESSAGES`.
+- Does not call OpenAI for welcomes.
 - Does not run for messages flagged by moderation.
 
 Configure it with:
@@ -241,7 +243,7 @@ Configure it with:
 ```dotenv
 WELCOME_FIRST_CHAT_ENABLED=true
 WELCOME_FIRST_CHAT_COOLDOWN_SECONDS=90
-WELCOME_FIRST_CHAT_MESSAGE=Bienvenido @{username}. Dato perturbador: {fact} Usa !help si quieres ver comandos.
+WELCOME_FIRST_CHAT_MESSAGES=Bienvenido @{username}, que gusto verte por aqui. Usa !help si quieres ver comandos. || Hey @{username}, bienvenido al chat. Ponte comodo y disfruta el stream. || Buenas @{username}, llegaste justo a tiempo.
 ```
 
 ## TODO

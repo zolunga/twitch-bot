@@ -20,7 +20,7 @@ const twitchApi = new TwitchApiClient();
 const commands = new CommandHandler({ chat, openai, memory, twitchApi });
 const moderation = new ModerationRules();
 const engagementReminder = new EngagementReminder(chat);
-const firstChatWelcome = new FirstChatWelcome(chat, openai, viewerMemory);
+const firstChatWelcome = new FirstChatWelcome(chat, viewerMemory);
 
 const eventSub = new TwitchEventSubClient({
   onChatMessage: async (message) => {

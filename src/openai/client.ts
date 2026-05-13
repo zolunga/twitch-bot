@@ -24,36 +24,6 @@ export class OpenAiClient {
     apiKey: config.openai.apiKey
   });
 
-  async generateDisturbingFact(recentFacts: string[] = []): Promise<string> {
-    let response: OpenAI.Responses.Response;
-
-    try {
-      response = await this.client.responses.create({
-        model: config.openai.model,
-        instructions: [
-          "Generate one random interesting and disturbing fact for a Twitch welcome message.",
-          "Keep it safe for a general livestream chat: no gore, hate, harassment, self-harm, or graphic violence.",
-          "Use Spanish.",
-          "Avoid repeating ideas from the recent facts provided by the developer.",
-          "Prefer horror topics mainly",
-          "Return only the fact, no prefix, no quotes.",
-          "Keep it under 160 characters."
-        ].join(" "),
-        input: [
-          "Dame un dato interesante y perturbador para saludar a alguien nuevo en chat.",
-          "",
-          "Datos recientes que debes evitar:",
-          recentFacts.length ? recentFacts.map((fact) => `- ${fact}`).join("\n") : "- ninguno"
-        ].join("\n"),
-        max_output_tokens: 60
-      });
-    } catch (error) {
-      throw normalizeOpenAiError(error);
-    }
-
-    return sanitizeForTwitch(response.output_text || "la mayoria del polvo en casa viene de piel muerta.");
-  }
-
   async answerQuestion(question: string, username: string, context: AnswerContext): Promise<string> {
     let response: OpenAI.Responses.Response;
 

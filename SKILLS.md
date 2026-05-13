@@ -19,7 +19,7 @@ Use this guide when working on this repository. The project is a local Node.js +
 - `src/config.ts`
   - Loads `.env` with `dotenv`.
   - Validates required Twitch/OpenAI variables.
-  - Defines optional feature flags, cooldowns, memory limits, stream cache TTL, and engagement messages.
+  - Defines optional feature flags, cooldowns, command messages, memory limits, stream cache TTL, and engagement messages.
 
 - `src/main.ts`
   - Wires all services together.
@@ -54,13 +54,14 @@ Use this guide when working on this repository. The project is a local Node.js +
     - `!ask <question>`
     - `!help`
   - Applies global AI cooldown and per-user `!ask` cooldown.
+  - Loads the `!redes` response from `SOCIAL_LINKS_MESSAGE`.
+  - Splits `SOCIAL_LINKS_MESSAGE` by `||` or `\n` and sends each segment as a separate chat message.
   - Runs `inspectAskQuestion` before calling OpenAI.
   - Adds recent chat memory and Twitch stream context to OpenAI calls.
 
 - `src/openai/client.ts`
   - Wraps the official `openai` SDK.
   - Generates short answers for `!ask`.
-  - Generates random safe, mildly disturbing facts for first-chat welcomes.
   - Converts OpenAI API failures into `OpenAiUnavailableError` to avoid noisy raw error handling in command code.
 
 - `src/moderation/rules.ts`
@@ -91,7 +92,7 @@ Use this guide when working on this repository. The project is a local Node.js +
   - Welcomes users first seen in persistent viewer memory.
   - Ignores command-only first messages.
   - Uses a global cooldown to avoid welcome spam.
-  - Calls OpenAI for a random mildly disturbing fact and falls back to a local fact if OpenAI is unavailable.
+  - Picks a random local welcome template from `WELCOME_FIRST_CHAT_MESSAGES`.
 
 - `src/utils/cooldown.ts`
   - Generic in-memory cooldown helper.
@@ -119,6 +120,8 @@ Useful optional variables:
 OPENAI_MODEL=gpt-5.2
 BOT_PERSONALITY=
 STREAM_CONTEXT=
+SOCIAL_LINKS_MESSAGE=Discord: https://example.com/discord || Instagram: https://example.com/instagram || TikTok: https://example.com/tiktok
+SOCIAL_LINKS_MESSAGE_DELAY_MS=2500
 ALLOW_BOT_SELF_MESSAGES=false
 ENGAGEMENT_REMINDERS_ENABLED=true
 ENGAGEMENT_REMINDER_INTERVAL_MINUTES=30
@@ -126,7 +129,7 @@ ENGAGEMENT_ACTIVE_CHAT_WINDOW_MINUTES=10
 ENGAGEMENT_REMINDER_MESSAGE=
 WELCOME_FIRST_CHAT_ENABLED=true
 WELCOME_FIRST_CHAT_COOLDOWN_SECONDS=90
-WELCOME_FIRST_CHAT_MESSAGE=Bienvenido @{username}. Dato perturbador: {fact} Usa !help si quieres ver comandos.
+WELCOME_FIRST_CHAT_MESSAGES=Bienvenido @{username}, que gusto verte por aqui. Usa !help si quieres ver comandos. || Hey @{username}, bienvenido al chat. Ponte comodo y disfruta el stream. || Buenas @{username}, llegaste justo a tiempo.
 MEMORY_RECENT_CHAT_MESSAGES=20
 MEMORY_PROMPT_CHAT_MESSAGES=8
 STREAM_CONTEXT_CACHE_MINUTES=2
@@ -150,7 +153,6 @@ If the bot replies as the streamer account, the access token belongs to the stre
 ## OpenAI Behavior
 
 - `!ask` uses OpenAI only after passing `askGuard` and cooldown checks.
-- First-chat welcome facts also call OpenAI, but only after passing the welcome cooldown.
 - OpenAI quota/billing failures are caught and converted into short user-facing fallbacks.
 - OpenAI does not provide automatic memory. This repo has short in-memory chat context plus local JSON viewer memory.
 

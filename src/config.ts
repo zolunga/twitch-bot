@@ -52,6 +52,12 @@ export const config = {
     aiGlobalMs: 15_000,
     askPerUserMs: 60_000
   },
+  commands: {
+    socialLinksMessage:
+      process.env.SOCIAL_LINKS_MESSAGE?.trim() ||
+      "Redes: YouTube https://example.com/youtube | Discord https://example.com/discord | X https://example.com/x",
+    socialLinksMessageDelayMs: optionalNumberEnv("SOCIAL_LINKS_MESSAGE_DELAY_MS", 2500)
+  },
   engagement: {
     remindersEnabled: process.env.ENGAGEMENT_REMINDERS_ENABLED?.trim().toLowerCase() !== "false",
     reminderIntervalMs: optionalNumberEnv("ENGAGEMENT_REMINDER_INTERVAL_MINUTES", 30) * 60_000,
@@ -61,9 +67,15 @@ export const config = {
       "Estoy por aqui tambien: usa !help para ver comandos, o !ask <pregunta> para preguntarme algo corto.",
     welcomeFirstChatEnabled: process.env.WELCOME_FIRST_CHAT_ENABLED?.trim().toLowerCase() !== "false",
     welcomeFirstChatCooldownMs: optionalNumberEnv("WELCOME_FIRST_CHAT_COOLDOWN_SECONDS", 90) * 1000,
-    welcomeFirstChatMessage:
-      process.env.WELCOME_FIRST_CHAT_MESSAGE?.trim() ||
-      "Bienvenido @{username}. Dato perturbador: {fact} Usa !help si quieres ver comandos."
+    welcomeFirstChatMessages: parseListEnv(
+      process.env.WELCOME_FIRST_CHAT_MESSAGES || process.env.WELCOME_FIRST_CHAT_MESSAGE,
+      [
+        "Bienvenido @{username}, que gusto verte por aqui. Usa !help si quieres ver comandos.",
+        "Hey @{username}, bienvenido al chat. Ponte comodo y disfruta el stream.",
+        "Buenas @{username}, llegaste justo a tiempo. Usa !redes si quieres seguir el contenido.",
+        "Bienvenido @{username}. Si tienes una pregunta corta, prueba con !ask."
+      ]
+    )
   },
   memory: {
     maxRecentChatMessages: optionalNumberEnv("MEMORY_RECENT_CHAT_MESSAGES", 20),
@@ -73,3 +85,12 @@ export const config = {
     contextCacheMs: optionalNumberEnv("STREAM_CONTEXT_CACHE_MINUTES", 2) * 60_000
   }
 } as const;
+
+function parseListEnv(value: string | undefined, fallback: string[]): string[] {
+  const parsed = value
+    ?.split(/\s*(?:\|\||\\n|\r?\n)\s*/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return parsed?.length ? parsed : fallback;
+}
