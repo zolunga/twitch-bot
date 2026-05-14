@@ -9,9 +9,21 @@ export interface TwitchTokenValidation {
 }
 
 export async function validateBotAccessToken(): Promise<TwitchTokenValidation> {
+  return validateTwitchAccessToken(config.twitch.botAccessToken);
+}
+
+export async function validateBroadcasterAccessToken(): Promise<TwitchTokenValidation | undefined> {
+  if (!config.twitch.broadcasterAccessToken) {
+    return undefined;
+  }
+
+  return validateTwitchAccessToken(config.twitch.broadcasterAccessToken);
+}
+
+async function validateTwitchAccessToken(accessToken: string): Promise<TwitchTokenValidation> {
   const response = await fetch("https://id.twitch.tv/oauth2/validate", {
     headers: {
-      Authorization: `OAuth ${config.twitch.botAccessToken}`
+      Authorization: `OAuth ${accessToken}`
     }
   });
 

@@ -32,6 +32,17 @@ interface EventSubEnvelope {
       message_id: string;
       message?: {
         text?: string;
+        fragments?: unknown[];
+      };
+      badges?: unknown[];
+      id?: string;
+      user_id?: string;
+      user_login?: string;
+      user_name?: string;
+      user_input?: string;
+      reward?: {
+        id?: string;
+        title?: string;
       };
     };
     subscription?: {
@@ -42,8 +53,22 @@ interface EventSubEnvelope {
   };
 }
 
+export interface RewardRedemption {
+  id: string;
+  userId: string;
+  userLogin: string;
+  username: string;
+  rewardId?: string;
+  rewardTitle: string;
+  userInput: string;
+  raw: unknown;
+}
+
 interface TwitchEventSubClientOptions {
-  onChatMessage: (message: ChatMessage) => Promise<void> | void;
+  accessToken: string;
+  chatUserId?: string;
+  onChatMessage?: (message: ChatMessage) => Promise<void> | void;
+  onRewardRedemption?: (redemption: RewardRedemption) => Promise<void> | void;
 }
 
 export class TwitchEventSubClient {
@@ -131,6 +156,7 @@ export class TwitchEventSubClient {
       }
 
       await this.subscribeToChatMessages(session.id);
+      await this.subscribeToRewardRedemptions(session.id);
       return;
     }
 
@@ -165,7 +191,7 @@ export class TwitchEventSubClient {
         return;
       }
 
-      await this.options.onChatMessage({
+      await this.options.onChatMessage?.({
         id: event.message_id,
         userId: event.chatter_user_id,
         userLogin: event.chatter_user_login,
@@ -173,14 +199,42 @@ export class TwitchEventSubClient {
         text: event.message?.text ?? "",
         raw: event
       });
+      return;
+    }
+
+    if (
+      messageType === "notification" &&
+      envelope.metadata.subscription_type === "channel.channel_points_custom_reward_redemption.add"
+    ) {
+      const event = envelope.payload.event;
+
+      if (!event) {
+        logger.warn("Reward redemption notification did not include an event payload.");
+        return;
+      }
+
+      await this.options.onRewardRedemption?.({
+        id: event.id ?? "",
+        userId: event.user_id ?? "",
+        userLogin: event.user_login ?? "",
+        username: event.user_name || event.user_login || "",
+        rewardId: event.reward?.id,
+        rewardTitle: event.reward?.title ?? "",
+        userInput: event.user_input ?? "",
+        raw: event
+      });
     }
   }
 
   private async subscribeToChatMessages(sessionId: string): Promise<void> {
+    if (!this.options.onChatMessage || !this.options.chatUserId) {
+      return;
+    }
+
     const response = await fetch("https://api.twitch.tv/helix/eventsub/subscriptions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${config.twitch.botAccessToken}`,
+        Authorization: `Bearer ${this.options.accessToken}`,
         "Client-Id": config.twitch.clientId,
         "Content-Type": "application/json"
       },
@@ -189,7 +243,7 @@ export class TwitchEventSubClient {
         version: "1",
         condition: {
           broadcaster_user_id: config.twitch.broadcasterUserId,
-          user_id: config.twitch.botUserId
+          user_id: this.options.chatUserId
         },
         transport: {
           method: "websocket",
@@ -203,6 +257,40 @@ export class TwitchEventSubClient {
     }
 
     logger.info("Subscribed to channel.chat.message events.");
+  }
+
+  private async subscribeToRewardRedemptions(sessionId: string): Promise<void> {
+    if (!this.options.onRewardRedemption) {
+      return;
+    }
+
+    const response = await fetch("https://api.twitch.tv/helix/eventsub/subscriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.options.accessToken}`,
+        "Client-Id": config.twitch.clientId,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        type: "channel.channel_points_custom_reward_redemption.add",
+        version: "1",
+        condition: {
+          broadcaster_user_id: config.twitch.broadcasterUserId
+        },
+        transport: {
+          method: "websocket",
+          session_id: sessionId
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to create reward redemption EventSub subscription: ${response.status} ${await response.text()}`
+      );
+    }
+
+    logger.info("Subscribed to channel.channel_points_custom_reward_redemption.add events.");
   }
 
   private resetKeepaliveTimer(ws: WebSocket, keepaliveSeconds?: number | null): void {

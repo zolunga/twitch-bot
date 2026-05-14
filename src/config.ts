@@ -33,6 +33,7 @@ export const config = {
     clientId: requiredEnv("TWITCH_CLIENT_ID"),
     clientSecret: requiredEnv("TWITCH_CLIENT_SECRET"),
     botAccessToken: requiredEnv("TWITCH_BOT_ACCESS_TOKEN"),
+    broadcasterAccessToken: process.env.TWITCH_BROADCASTER_ACCESS_TOKEN?.trim() || "",
     botUserId: requiredEnv("TWITCH_BOT_USER_ID"),
     broadcasterUserId: requiredEnv("TWITCH_BROADCASTER_USER_ID"),
     botUsername: requiredEnv("BOT_USERNAME"),
@@ -50,7 +51,17 @@ export const config = {
   },
   cooldowns: {
     aiGlobalMs: 15_000,
-    askPerUserMs: 60_000
+    askPerUserMs: 60_000,
+    soundGlobalMs: optionalNumberEnv("SOUND_GLOBAL_COOLDOWN_MS", 10_000),
+    soundPerUserMs: optionalNumberEnv("SOUND_PER_USER_COOLDOWN_MS", 60_000)
+  },
+  obs: {
+    websocketUrl: process.env.OBS_WEBSOCKET_URL?.trim() || "ws://127.0.0.1:4455",
+    password: process.env.OBS_WEBSOCKET_PASSWORD?.trim() || "",
+    requestTimeoutMs: optionalNumberEnv("OBS_REQUEST_TIMEOUT_MS", 5_000)
+  },
+  sounds: {
+    rewardTitle: process.env.SOUND_REWARD_TITLE?.trim() || "Reproducir sonido"
   },
   commands: {
     socialLinksMessage:

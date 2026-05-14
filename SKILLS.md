@@ -206,9 +206,6 @@ Set it back to `false` for normal use.
 
 ## Future TODOs
 
-- OBS integration.
 - TTS.
-- Persistent memory.
-- Viewer profile memory.
 - Automatic timeout/ban after confidence threshold.
 - OpenClaw integration for clips/OBS.
